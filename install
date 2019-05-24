@@ -1,0 +1,3 @@
+#!/bin/sh
+
+echo "This will configure the server. Sit back and relax..."
