@@ -1,4 +1,4 @@
-== Home Media Center
+## Home Media Center
 
 This (re)install on any server using a simple script
 
