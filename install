@@ -22,8 +22,6 @@ fi
 
 echo "This will configure the server. Sit back and relax..."
 
-exit
-
 [ ! -d /mnt/HDD ] && mkdir /mnt/HDD
 # update fstab
 #cat << EOF | sudo tee -a /tmp/etc.fstab
