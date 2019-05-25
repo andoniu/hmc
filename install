@@ -23,9 +23,9 @@ fi
 echo "This will configure the server. Sit back and relax..."
 
 [ ! -d /mnt/HDD ] && mkdir /mnt/HDD
-# update fstab
-#cat << EOF | sudo tee -a /tmp/etc.fstab
-sudo tee -a /etc/fstab > /dev/null << EOF
+
+HDD_UUID="6494496b-adf9-4977-abdc-d8f85a5b6f62"
+grep -q $HDD_UUID /etc/fstab || sudo tee -a /etc/fstab > /dev/null << EOF
 UUID=6494496b-adf9-4977-abdc-d8f85a5b6f62 /mnt/HDD ext4 defaults,noatime 0 0
 /mnt/HDD/1GB.swap  none  swap  sw 0  0
 /mnt/HDD/root/opt /opt none bind 0 0
@@ -47,8 +47,7 @@ MOVIES=/mnt/HDD/tv
 
 function startCouch {
 	docker pull lsioarmhf/couchpotato
-	docker stop couchpotato
-	docker rm couchpotato
+	docker stop couchpotato && docker rm couchpotato || echo "couchpotato first install"
 	CFG=/opt/couchpotato
 
 	docker create \
@@ -70,8 +69,7 @@ function startOwnCloud {
 
 function startSickrage {
 	docker pull lsioarmhf/sickrage
-	docker stop sickrage
-	docker rm sickrage
+	docker stop sickrage && docker rm sickrage || echo "sickrage first install"
 	CFG=/opt/sickrage
 
 	docker create --name=sickrage \
