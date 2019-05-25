@@ -9,7 +9,7 @@ fi
 
 function installDocker {
 	echo "Installing docker..."
-	apt-get install docker
+	curl -sSL https://get.docker.com | sh
 }
 
 command -v docker &>/dev/null || installDocker
