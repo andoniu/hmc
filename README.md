@@ -4,5 +4,5 @@ This (re)install on any server using a simple script
 
 Steps:
 
-1. get the script with git clone, or wget, or whatever
-2. run it
+1. install wget, or curl
+2. $ sh <(wget -qO- https://raw.githubusercontent.com/andoniu/hmc/master/install)

@@ -1,3 +1,151 @@
-#!/bin/sh
+#!/bin/bash
+
+set -xe
+
+if [ "$EUID" -ne 0 ]
+	then echo "Please run as root"
+	exit 1;
+fi
+
+function installDocker {
+	echo "Installing docker..."
+	apt-get install docker
+}
+
+command -v docker &>/dev/null || installDocker
+
+if [ $(systemctl is-active docker) != "active" ]
+then
+	systemctl enable docker
+	systemctl start docker
+fi
 
 echo "This will configure the server. Sit back and relax..."
+
+exit
+
+[ ! -d /mnt/HDD ] && mkdir /mnt/HDD
+# update fstab
+#cat << EOF | sudo tee -a /tmp/etc.fstab
+sudo tee -a /etc/fstab > /dev/null << EOF
+UUID=6494496b-adf9-4977-abdc-d8f85a5b6f62 /mnt/HDD ext4 defaults,noatime 0 0
+/mnt/HDD/1GB.swap  none  swap  sw 0  0
+/mnt/HDD/root/opt /opt none bind 0 0
+/mnt/HDD/root/var /var none bind 0 0
+EOF
+
+mount -a
+
+if id -u media > /dev/null 2>&1
+then
+	echo "media user already exists";
+else
+	echo "create user media"
+	useradd media
+fi
+
+DOWNLOADS=/mnt/HDD/downloads/complete
+MOVIES=/mnt/HDD/tv
+
+function startCouch {
+	docker pull lsioarmhf/couchpotato
+	docker stop couchpotato
+	docker rm couchpotato
+	CFG=/opt/couchpotato
+
+	docker create \
+        	--name=couchpotato \
+        	-v $CFG:/config \
+        	-v $DOWNLOADS:/downloads \
+        	-v $MOVIES/couchpotato:/movies \
+        	-e PGID=$(id -g media) -e PUID=$(id -u media) \
+        	-v /etc/localtime:/etc/localtime:ro \
+        	-p 5050:5050 --restart=always \
+        	lsioarmhf/couchpotato
+	docker start couchpotato
+}
+
+function startOwnCloud {
+	# after docker build git://github.com/comzone/rpi-owncloud.git
+	docker run -t -i -p 80:80 -p 443:443 comzone/rpi-owncloud
+}
+
+function startSickrage {
+	docker pull lsioarmhf/sickrage
+	docker stop sickrage
+	docker rm sickrage
+	CFG=/opt/sickrage
+
+	docker create --name=sickrage \
+		-v $CFG:/config \
+		-v $DOWNLOADS:/downloads \
+		-v $MOVIES/sickrage:/tv \
+		-e PGID=$(id -g media) -e PUID=$(id -u media) \
+		-v /etc/localtime:/etc/localtime:ro \
+		-p 8081:8081 --restart=always \
+		lsioarmhf/sickrage
+	docker start sickrage
+}
+
+function startTransmission {
+	DOWNLOADS=/mnt/HDD/downloads
+
+	docker pull lsioarmhf/transmission
+	docker stop transmission && docker rm transmission || echo "transmission was not installed"
+	#docker create --name transmission
+
+	docker create --name transmission --net="host" \
+	    -v /opt/transmission:/config \
+	    -v $DOWNLOADS:/downloads \
+	    -v /mnt/HDD/tmp:/watch \
+	    -e PGID=$(id -g media) -e PUID=$(id -u media) \
+	    -v /etc/localtime:/etc/localtime:ro \
+	    -p 9091:9091 -p 51413:51413 \
+	    -p 51413:51413/udp \
+	    --restart=always \
+	    lsioarmhf/transmission
+
+	docker start transmission
+}
+
+startCouch
+startSickrage
+startTransmission
+
+####################################################
+
+# cronjob
+
+[ -d /home/media/bin ] || mkdir -p /home/media/bin
+
+cat << EOF > /home/media/bin/backup
+#!/bin/bash
+
+BKUP_DIR=/mnt/bkup
+SYS_BKUP=/mnt/HDD/system
+
+sudo mount -U f33527bb-b8d9-4dee-b822-b45db83cbe47 \$BKUP_DIR
+# TODO: when out of disk space, add --delete
+echo "Backup redundant"
+sudo rsync -av /mnt/HDD/shares/ \$BKUP_DIR
+sudo umount \$BKUP_DIR
+echo "Done."
+
+echo "Backup system"
+sudo rsync -aAXv --delete /home /etc \$SYS_BKUP
+echo "Done."
+
+# some housecleaning
+sudo journalctl --vacuum-size=50M
+
+# delete incomplete downloaded files older than 100 days (manually do it for downloaded)
+find /mnt/HDD/downloads/incomplete -mtime +100 -exec sudo rm -fr {} \;
+find /mnt/HDD/downloads/complete -mtime +100 -exec sudo rm -fr {} \;
+
+
+sudo fstrim -v /
+EOF
+
+chmod +x /home/media/bin/backup
+
+(crontab -l -u media 2>/dev/null || true; echo "MAILTO=\"andoniu@yahoo.co.uk\"\n30 4 * * 0 /home/media/bin/backup") | crontab -u media -
