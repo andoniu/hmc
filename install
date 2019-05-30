@@ -42,23 +42,25 @@ else
 	useradd media
 fi
 
-DOWNLOADS=/mnt/HDD/downloads/complete
-MOVIES=/mnt/HDD/tv
-
 function startCouch {
-	docker pull lsioarmhf/couchpotato
+	docker pull linuxserver/couchpotato
 	docker stop couchpotato && docker rm couchpotato || echo "couchpotato first install"
 	CFG=/opt/couchpotato
+	DOWNLOADS=/mnt/HDD/downloads/complete
+	MOVIES=/mnt/HDD/tv
+
 
 	docker create \
-        	--name=couchpotato \
+		--name=couchpotato \
+        	-e PGID=$(id -g media) -e PUID=$(id -u media) \
+		-e UMASK_SET=022 \
+        	-v /etc/localtime:/etc/localtime:ro \
+		-p 5050:5050 \
         	-v $CFG:/config \
         	-v $DOWNLOADS:/downloads \
         	-v $MOVIES/couchpotato:/movies \
-        	-e PGID=$(id -g media) -e PUID=$(id -u media) \
-        	-v /etc/localtime:/etc/localtime:ro \
-        	-p 5050:5050 --restart=always \
-        	lsioarmhf/couchpotato
+		--restart unless-stopped \
+		linuxserver/couchpotato
 	docker start couchpotato
 }
 
@@ -68,9 +70,11 @@ function startOwnCloud {
 }
 
 function startSickrage {
-	docker pull lsioarmhf/sickrage
+	docker pull linuxserver/sickrage
 	docker stop sickrage && docker rm sickrage || echo "sickrage first install"
 	CFG=/opt/sickrage
+	DOWNLOADS=/mnt/HDD/downloads/complete
+	MOVIES=/mnt/HDD/tv
 
 	docker create --name=sickrage \
 		-v $CFG:/config \
@@ -78,17 +82,16 @@ function startSickrage {
 		-v $MOVIES/sickrage:/tv \
 		-e PGID=$(id -g media) -e PUID=$(id -u media) \
 		-v /etc/localtime:/etc/localtime:ro \
-		-p 8081:8081 --restart=always \
-		lsioarmhf/sickrage
+		-p 8081:8081 --restart=unless-stopped \
+		linuxserver/sickrage
 	docker start sickrage
 }
 
 function startTransmission {
 	DOWNLOADS=/mnt/HDD/downloads
 
-	docker pull lsioarmhf/transmission
+	docker pull linuxserver/transmission
 	docker stop transmission && docker rm transmission || echo "transmission was not installed"
-	#docker create --name transmission
 
 	docker create --name transmission --net="host" \
 	    -v /opt/transmission:/config \
@@ -98,8 +101,8 @@ function startTransmission {
 	    -v /etc/localtime:/etc/localtime:ro \
 	    -p 9091:9091 -p 51413:51413 \
 	    -p 51413:51413/udp \
-	    --restart=always \
-	    lsioarmhf/transmission
+	    --restart=unless-stopped \
+	    linuxserver/transmission
 
 	docker start transmission
 }
