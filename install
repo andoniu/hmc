@@ -7,9 +7,19 @@ if [ "$EUID" -ne 0 ]
 	exit 1;
 fi
 
+# Create media user
+if id -u media > /dev/null 2>&1
+then
+	echo "media user already exists";
+else
+	echo "create user media"
+	useradd media
+fi
+
 function installDocker {
 	echo "Installing docker..."
 	curl -sSL https://get.docker.com | sh
+	usermod -aG docker media
 }
 
 command -v docker &>/dev/null || installDocker
@@ -40,13 +50,6 @@ EOF
 
 mount -a
 
-if id -u media > /dev/null 2>&1
-then
-	echo "media user already exists";
-else
-	echo "create user media"
-	useradd media
-fi
 
 function startCouch {
 	docker pull linuxserver/couchpotato
