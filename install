@@ -32,6 +32,12 @@ UUID=6494496b-adf9-4977-abdc-d8f85a5b6f62 /mnt/HDD ext4 defaults,noatime 0 0
 /mnt/HDD/root/var /var none bind 0 0
 EOF
 
+# TODO: at reboot bind opt overlayfs not working
+# overlayfs	/var.overlay overlay noauto,nofail,x-systemd.automount,rw,lowerdir=/var,upperdir=/mnt/HDD/root/var.upper,workdir=/mnt/HDD/root/var.work    0   0
+#/var.overlay	/var	none	bind	0 0
+#overlayfs	/opt.overlay overlay noauto,nofail,x-systemd.automount,rw,lowerdir=/opt,upperdir=/mnt/HDD/root/opt.upper,workdir=/mnt/HDD/root/opt.work    0   0
+#/opt.overlay	/opt	none	bind	0 0
+
 mount -a
 
 if id -u media > /dev/null 2>&1
@@ -126,12 +132,12 @@ SYS_BKUP=/mnt/HDD/system
 sudo mount -U f33527bb-b8d9-4dee-b822-b45db83cbe47 \$BKUP_DIR
 # TODO: when out of disk space, add --delete
 echo "Backup redundant"
-sudo rsync -av /mnt/HDD/shares/ \$BKUP_DIR
+sudo rsync -ax /mnt/HDD/shares/ \$BKUP_DIR
 sudo umount \$BKUP_DIR
 echo "Done."
 
 echo "Backup system"
-sudo rsync -aAXv --delete /home /etc \$SYS_BKUP
+sudo rsync -aAXx --delete /home /etc \$SYS_BKUP
 echo "Done."
 
 # some housecleaning
@@ -147,4 +153,21 @@ EOF
 
 chmod +x /home/media/bin/backup
 
-(crontab -l -u media 2>/dev/null || true; echo "MAILTO=\"andoniu@yahoo.co.uk\"\n30 4 * * 0 /home/media/bin/backup") | crontab -u media -
+(crontab -l -u media 2>/dev/null || true; echo -e "MAILTO=\"andoniu@yahoo.co.uk\"\n30 4 * * 0 /home/media/bin/backup") | crontab -u media -
+
+##################################
+## minidlna
+
+# TODO: docker if possible
+
+function installMinidlna {
+	apt-get install -y minidlna
+	systemctl stop minidlna
+	sed -i 's#^media_dir=.*#media_dir=/mnt/HDD/tv/#' /etc/minidlna.conf
+	usermod -a -G media minidlna
+	systemctl start minidlna
+
+}
+
+command -v minidlnad  &>/dev/null || installMinidlna
+
