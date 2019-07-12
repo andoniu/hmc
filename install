@@ -7,49 +7,50 @@ if [ "$EUID" -ne 0 ]
 	exit 1;
 fi
 
-# Create media user
-if id -u media > /dev/null 2>&1
-then
-	echo "media user already exists";
-else
-	echo "create user media"
-	useradd media
-fi
-
 function installDocker {
 	echo "Installing docker..."
 	curl -sSL https://get.docker.com | sh
 	usermod -aG docker media
 }
 
-command -v docker &>/dev/null || installDocker
+function prerequisites {
+	# Create media user
+	if id -u media > /dev/null 2>&1
+	then
+		echo "media user already exists";
+	else
+		echo "create user media"
+		useradd media
+	fi
 
-if [ $(systemctl is-active docker) != "active" ]
-then
-	systemctl enable docker
-	systemctl start docker
-fi
+	command -v docker &>/dev/null || installDocker
 
-echo "This will configure the server. Sit back and relax..."
+	if [ $(systemctl is-active docker) != "active" ]
+	then
+		systemctl enable docker
+		systemctl start docker
+	fi
+}
 
-[ ! -d /mnt/HDD ] && mkdir /mnt/HDD
+function mountHDD {
+	[ ! -d /mnt/HDD ] && mkdir /mnt/HDD
 
-HDD_UUID="6494496b-adf9-4977-abdc-d8f85a5b6f62"
-grep -q $HDD_UUID /etc/fstab || sudo tee -a /etc/fstab > /dev/null << EOF
+	HDD_UUID="6494496b-adf9-4977-abdc-d8f85a5b6f62"
+	grep -q $HDD_UUID /etc/fstab || sudo tee -a /etc/fstab > /dev/null << EOF
 UUID=6494496b-adf9-4977-abdc-d8f85a5b6f62 /mnt/HDD ext4 defaults,noatime 0 0
 /mnt/HDD/1GB.swap  none  swap  sw 0  0
 /mnt/HDD/root/opt /opt none bind 0 0
 /mnt/HDD/root/var /var none bind 0 0
 EOF
 
-# TODO: at reboot bind opt overlayfs not working
-# overlayfs	/var.overlay overlay noauto,nofail,x-systemd.automount,rw,lowerdir=/var,upperdir=/mnt/HDD/root/var.upper,workdir=/mnt/HDD/root/var.work    0   0
-#/var.overlay	/var	none	bind	0 0
-#overlayfs	/opt.overlay overlay noauto,nofail,x-systemd.automount,rw,lowerdir=/opt,upperdir=/mnt/HDD/root/opt.upper,workdir=/mnt/HDD/root/opt.work    0   0
-#/opt.overlay	/opt	none	bind	0 0
+	# TODO: at reboot bind opt overlayfs not working
+	# overlayfs	/var.overlay overlay noauto,nofail,x-systemd.automount,rw,lowerdir=/var,upperdir=/mnt/HDD/root/var.upper,workdir=/mnt/HDD/root/var.work    0   0
+	#/var.overlay	/var	none	bind	0 0
+	#overlayfs	/opt.overlay overlay noauto,nofail,x-systemd.automount,rw,lowerdir=/opt,upperdir=/mnt/HDD/root/opt.upper,workdir=/mnt/HDD/root/opt.work    0   0
+	#/opt.overlay	/opt	none	bind	0 0
 
-mount -a
-
+	mount -a
+}
 
 function startCouch {
 	docker pull linuxserver/couchpotato
@@ -116,17 +117,15 @@ function startTransmission {
 	docker start transmission
 }
 
-startCouch
-startSickrage
-startTransmission
 
 ####################################################
 
 # cronjob
 
-[ -d /home/media/bin ] || mkdir -p /home/media/bin
+function installBkup {
+	[ -d /home/media/bin ] || mkdir -p /home/media/bin
 
-cat << EOF > /home/media/bin/backup
+	cat << EOF > /home/media/bin/backup
 #!/bin/bash
 
 BKUP_DIR=/mnt/bkup
@@ -154,23 +153,36 @@ find /mnt/HDD/downloads/complete -mtime +100 -exec sudo rm -fr {} \;
 sudo fstrim -v /
 EOF
 
-chmod +x /home/media/bin/backup
+	chmod +x /home/media/bin/backup
+}
 
-(crontab -l -u media 2>/dev/null || true; echo -e "MAILTO=\"andoniu@yahoo.co.uk\"\n30 4 * * 0 /home/media/bin/backup") | crontab -u media -
-
-##################################
-## minidlna
 
 # TODO: docker if possible
-
 function installMinidlna {
 	apt-get install -y minidlna
 	systemctl stop minidlna
 	sed -i 's#^media_dir=.*#media_dir=/mnt/HDD/tv/#' /etc/minidlna.conf
 	usermod -a -G media minidlna
 	systemctl start minidlna
-
 }
 
-command -v minidlnad  &>/dev/null || installMinidlna
 
+function installAll {
+	prerequisites
+	mountHDD
+	startCouch
+	startSickrage
+	startTransmission
+	if [ ! -f /home/media/bin/backup ]
+	then
+		installBkup
+		(crontab -l -u media 2>/dev/null || true; echo -e "MAILTO=\"andoniu@yahoo.co.uk\"\n30 4 * * 0 /home/media/bin/backup") | crontab -u media -
+	fi
+	command -v minidlnad  &>/dev/null || installMinidlna
+}
+
+function test {
+	echo "testing..."
+}
+
+$1
