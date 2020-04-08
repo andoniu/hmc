@@ -80,7 +80,7 @@ function startOwnCloud {
 }
 
 function startSickrage {
-	docker pull linuxserver/sickrage
+	docker pull linuxserver/sickchill
 	docker stop sickrage && docker rm sickrage || echo "sickrage first install"
 	CFG=/opt/sickrage
 	DOWNLOADS=/mnt/HDD/downloads/complete
@@ -93,7 +93,7 @@ function startSickrage {
 		-e PGID=$(id -g media) -e PUID=$(id -u media) \
 		-v /etc/localtime:/etc/localtime:ro \
 		-p 8081:8081 --restart=unless-stopped \
-		linuxserver/sickrage
+		linuxserver/sickchill
 	docker start sickrage
 }
 
