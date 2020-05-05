@@ -30,6 +30,7 @@ function prerequisites {
 		systemctl enable docker
 		systemctl start docker
 	fi
+	docker image prune
 }
 
 function mountHDD {
@@ -115,6 +116,26 @@ function startTransmission {
 	    linuxserver/transmission
 
 	docker start transmission
+}
+
+function startNBZ {
+	DOWNLOADS=/mnt/HDD/downloads
+
+	docker pull linuxserver/sabnzbd
+	docker stop sabnzbd && docker rm sabnzbd || echo "sabnzbd was not installed"
+
+	docker create --name sabnzbd \
+	    -v /opt/sabnzbd:/config \
+	    -v $DOWNLOADS:/downloads \
+	    -v $DOWNLOADS/incomplete:/incomplete-downloads \
+	    -v /mnt/HDD/tmp:/watch \
+	    -e PGID=$(id -g media) -e PUID=$(id -u media) \
+	    -v /etc/localtime:/etc/localtime:ro \
+	    -p 8080:8080 -p 9090:9090 \
+	    --restart=unless-stopped \
+	    linuxserver/sabnzbd
+
+	docker start sabnzbd
 }
 
 
